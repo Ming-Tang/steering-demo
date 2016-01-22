@@ -1,0 +1,23 @@
+{
+  "name": "racing-server",
+  "version": "1.0.0",
+  "description": "Backend for racing game",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ming-Tang",
+  "license": "MIT",
+  "repository": "none",
+  "dependencies": {
+    "body-parser": "^1.14.2",
+    "bufferutil": "^1.2.1",
+    "express": "^4.13.3",
+    "express-minify": "^0.2.0",
+    "express-uglify": "^0.3.1",
+    "express-ws": "^1.0.0-rc.2",
+    "utf-8-validate": "^1.2.1",
+    "ws": "^1.0.1"
+  }
+}
