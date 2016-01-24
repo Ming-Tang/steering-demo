@@ -7,9 +7,9 @@ Physijs.scripts.ammo = '/js/ammo.js';
 var initScene, render,
   ground_material, box_material,
   renderer, render_stats, physics_stats, scene, ground, light, camera,
-  vehicle_body, vehicle, loader, ws, telemetry,
-  wx, wy, frontWheels, rearWheels, wall_h, wall_t, arena_h, arena_w;
-
+  vehicles, loader,
+  wx, wy, frontWheels, rearWheels,
+  wall_h, wall_t, arena_h, arena_w;
 
 initScene = function() {
 
@@ -32,13 +32,11 @@ initScene = function() {
   document.getElementById( 'viewport' ).appendChild( physics_stats.domElement );
 
   var room = location.search;
-  ws = new WebSocket("ws://" + document.location.host + "/read/steering" + room);
-  telemetry = new WebSocket("ws://" + document.location.host + "/write/telemetry" + room);
 
   if (true) {
     frontWheels = [0];
     rearWheels = [1, 2];
-    wx = [0, -1.8, 1.8];
+    wx = [0, -1.6, 1.6];
     wy = [3.3, -3.2, -3.2];
   } else {
     frontWheels = [0, 1];
@@ -49,43 +47,6 @@ initScene = function() {
 
   scene = new Physijs.Scene();
   scene.setGravity(new THREE.Vector3( 0, -40, 0 ));
-  scene.addEventListener(
-    'update',
-    function() {
-      var vel = vehicle.mesh.getLinearVelocity();
-      var spd = vel.length();
-      if (isNaN(spd)) spd = 0;
-      if (telemetry && telemetry.readyState === 1)
-        telemetry.send('s' + spd);
-
-      if ( input && vehicle ) {
-        if (input.steering < -.6) input.steering = -.6;
-        if (input.steering > .6) input.steering = .6;
-
-        frontWheels.forEach(function(w) { vehicle.setSteering(input.steering, w); });
-        //rearWheels.forEach(function(w) { vehicle.setSteering(-0.1*input.steering, w); });
-
-        if (input.power === null) {
-          vehicle.applyEngineForce(0);
-          vehicle.setBrake(0);
-        }
-        else if (input.power > 0) {
-          vehicle.applyEngineForce(1500 * input.power);
-          vehicle.setBrake(0);
-        } else if (input.power < 0) {
-          if (spd < 4) {
-            vehicle.applyEngineForce(500 * input.power);
-          } else {
-            frontWheels.forEach(function(w) { vehicle.setBrake(-35 * input.power, w); });
-            rearWheels.forEach(function(w) { vehicle.setBrake(-25 * input.power, w); });
-          }
-        }
-      }
-
-      scene.simulate( undefined, 5 );
-      physics_stats.update();
-    }
-  );
 
   camera = new THREE.PerspectiveCamera(
     50,
@@ -93,12 +54,12 @@ initScene = function() {
     1,
     1000
   );
-  scene.add( camera );
+  scene.add(camera);
 
   // Light
   light = new THREE.DirectionalLight( 0xFFFFFF );
-  light.position.set( 20, 20, -15 );
-  light.target.position.copy( scene.position );
+  light.position.set(20, 20, -15);
+  light.target.position.copy(new THREE.Vector3(0, 0, 0));
   light.castShadow = true;
   light.shadowCameraLeft = -150;
   light.shadowCameraTop = -150;
@@ -106,17 +67,15 @@ initScene = function() {
   light.shadowCameraBottom = 150;
   light.shadowCameraNear = 20;
   light.shadowCameraFar = 400;
-  light.shadowBias = -.0001
-  light.shadowMapWidth = light.shadowMapHeight = 2048;
+  light.shadowBias = -.001;
+  light.shadowMapWidth = light.shadowMapHeight = 512;
   light.shadowDarkness = .6;
-  scene.add( light );
+  scene.add(light);
 
-  wall_h = 4;
-  wall_t = 0.1;
+  wall_h = 12;
+  wall_t = 0.5;
   arena_h = 100;
   arena_w = 170;
-
-  var input;
 
   // Loader
   loader = new THREE.TextureLoader();
@@ -192,81 +151,148 @@ initScene = function() {
 
   var json_loader = new THREE.JSONLoader();
 
-  json_loader.load( "models/mustang.js", function( car, car_materials ) {
-    json_loader.load( "models/mustang_wheel.js", function( wheel, wheel_materials ) {
-      var mesh = new Physijs.BoxMesh(
-        car,
-        new THREE.MeshFaceMaterial(car_materials),
-        90
-      );
-      mesh.position.y = 3;
-      mesh.castShadow = mesh.receiveShadow = true;
+  // http://stackoverflow.com/a/3426956
+  function hashCode(str) { // java String#hashCode
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return hash;
+  }
 
-      vehicle = new Physijs.Vehicle(mesh, new Physijs.VehicleTuning(
-        20.0, //suspension_stiffness
-        200.0, //suspension_compression
-        10.0, //suspension_damping
-        500, //max_suspension_travel
-        9.2, //friction_slip
-        2000 //max_suspension_force
-      ));
-      scene.add( vehicle );
+  function intToRGB(i){
+    var c = (i & 0x00FFFFFF)
+      .toString(16)
+      .toUpperCase();
 
-      var wheel_material = new THREE.MeshFaceMaterial( wheel_materials );
+    return "00000".substring(0, 6 - c.length) + c;
+  }
 
-      for ( var i = 0; i < wx.length; i++ ) {
-        vehicle.addWheel(
-          wheel,
-          wheel_material,
-          new THREE.Vector3(wx[i], -1, wy[i]),
-          new THREE.Vector3(0, -1, 0),
-          new THREE.Vector3(-1, 0, 0),
-          0.5, //suspension_rest_length
-          0.7,
-          i < 2 ? false : true
+  function mkVehicle(name, x, z) {
+    var ws, telemetry, vehicle, input;
+    json_loader.load( "models/mustang.js", function( car, car_materials ) {
+      json_loader.load( "models/mustang_wheel.js", function( wheel, wheel_materials ) {
+
+        ws = new WebSocket("ws://" + document.location.host + "/read/steering" + room + "-" + name);
+        telemetry = new WebSocket("ws://" + document.location.host + "/write/telemetry" + room + "-" + name);
+
+        car_materials[4].color.setStyle('#' + intToRGB(hashCode(name + "" + x + "" + z)));
+        var mesh = new Physijs.BoxMesh(
+          car,
+          new THREE.MeshFaceMaterial(car_materials),
+          90
         );
-      }
 
-      input = { power: null, steering: 0 };
+        mesh.position.x = x || 0;
+        mesh.position.z = z || 0;
+        mesh.position.y = 2;
+        mesh.castShadow = mesh.receiveShadow = true;
 
-      ws.onmessage = function(evt) {
-        if (!evt.data) return;
-        if (evt.data.charAt(0) == 'a') {
-          var x = parseFloat(evt.data.slice(1));
-          input.power = x;
-        } else if (evt.data.charAt(0) == 'b') {
-          var x = parseFloat(evt.data.slice(1));
-          input.power = -x;
-        } else {
-          var angle = parseFloat(evt.data);
-          input.steering = -angle / 80;
-          input.power = null;
+        vehicle = new Physijs.Vehicle(
+            mesh, new Physijs.VehicleTuning(
+              200.0, //suspension_stiffness
+              200.0, //suspension_compression
+              10.0, //suspension_damping
+              500, //max_suspension_travel
+              9.2, //friction_slip
+              2000 //max_suspension_force
+              )
+            );
+        scene.add( vehicle );
+
+        var wheel_material = new THREE.MeshFaceMaterial( wheel_materials );
+
+        for ( var i = 0; i < wx.length; i++ ) {
+          vehicle.addWheel(
+              wheel,
+              wheel_material,
+              new THREE.Vector3(wx[i], -1, wy[i]),
+              new THREE.Vector3(0, -1, 0),
+              new THREE.Vector3(-1, 0, 0),
+              0.5, //suspension_rest_length
+              0.7,
+              i < 2 ? false : true
+              );
         }
-      };
 
+        input = { power: null, steering: 0 };
+
+        ws.onmessage = function(evt) {
+          if (!evt.data) return;
+          if (evt.data.charAt(0) == 'a') {
+            var x = parseFloat(evt.data.slice(1));
+            input.power = x;
+          } else if (evt.data.charAt(0) == 'b') {
+            var x = parseFloat(evt.data.slice(1));
+            input.power = -x;
+          } else {
+            var angle = parseFloat(evt.data);
+            input.steering = -angle / 80;
+            input.power = null;
+          }
+        };
+
+      scene.addEventListener('update', function() {
+        var vel = vehicle.mesh.getLinearVelocity();
+        var spd = vel.length();
+        if (isNaN(spd)) spd = 0;
+        if (telemetry && telemetry.readyState === 1)
+          telemetry.send('s' + spd);
+
+        if ( input && vehicle ) {
+          if (input.steering < -.6) input.steering = -.6;
+          if (input.steering > .6) input.steering = .6;
+
+          frontWheels.forEach(function(w) { vehicle.setSteering(input.steering, w); });
+          //rearWheels.forEach(function(w) { vehicle.setSteering(-0.1*input.steering, w); });
+
+          if (input.power === null) {
+            vehicle.applyEngineForce(0);
+            vehicle.setBrake(0);
+          }
+          else if (input.power > 0) {
+            vehicle.applyEngineForce(5500 * input.power);
+            vehicle.setBrake(0);
+          } else if (input.power < 0) {
+            if (spd < 5) {
+              vehicle.applyEngineForce(2000 * input.power);
+            } else {
+              frontWheels.forEach(function(w) { vehicle.setBrake(-85 * input.power, w); });
+              rearWheels.forEach(function(w) { vehicle.setBrake(-65 * input.power, w); });
+            }
+          }
+        }
+      });
+
+      return vehicle;
+
+      });
     });
-  });
+  }
+  // END
 
+
+  mkVehicle("a", 0, 0);
+  mkVehicle("b", 5, 5);
+  mkVehicle("c", -5, 5);
+
+  scene.addEventListener('update', function() {
+    scene.simulate( undefined, 5 );
+    physics_stats.update();
+  });
   requestAnimationFrame( render );
   scene.simulate();
 };
 
 render = function() {
   requestAnimationFrame( render );
-  if ( vehicle ) {
-    var r = 0.6, theta = 35 * (Math.PI / 180);
-    var cosine = Math.cos(theta), sine = Math.sin(theta);
-    // camera.position.copy( vehicle.mesh.position ).add
-    var pos =new THREE.Vector3(
-        arena_w * r * cosine, arena_w * sine, 0
-        );
-    camera.position.copy(pos);
-    // camera.lookAt( vehicle.mesh.position );
-    camera.lookAt( new THREE.Vector3(0, 0, 0) );
-
-    light.target.position.copy( vehicle.mesh.position );
-    //light.position.addVectors( light.target.position, new THREE.Vector3( 20, 20, -15 ) );
-  }
+  var r = 0.6, theta = 35 * (Math.PI / 180);
+  var cosine = Math.cos(theta), sine = Math.sin(theta);
+  var pos =new THREE.Vector3(
+      arena_w * r * cosine, arena_w * sine, 0
+      );
+  camera.position.copy(pos);
+  camera.lookAt( new THREE.Vector3(0, 0, 0) );
   renderer.render( scene, camera );
   render_stats.update();
 };

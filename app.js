@@ -49,13 +49,14 @@ wss.on('connection', (ws) => {
     ws.on('message', (msg) => {
       // broadcast message
       wss.clients.forEach((client) => {
-        //console.log("Send: ", endpoint, room, "=>", client.endpoint, client.room);
         if (typeof client.endpoint === "string"
             && typeof client.room === "string"
             && client.readyState === client.OPEN
             && endpoint === client.endpoint
-            && room === client.room)
+            && room === client.room) {
+          //console.log("Send: ", endpoint, room, "=>", client.endpoint, client.room);
           client.send(msg);
+        }
       });
     });
   } else {
