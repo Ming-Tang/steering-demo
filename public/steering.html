@@ -133,7 +133,8 @@ window.onload = function() {
       return;
     }
 
-    var th = (ry > 0.5 ? 1 : ry * 2.0);
+    var bound = 0.65;
+    var th = (ry > bound ? 1 : ry / bound);
     var m = (rx > 0.5 ? 'a ' : 'b');
     ws.send(m + "" + th);
     if (th == 0)

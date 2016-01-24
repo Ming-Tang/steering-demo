@@ -13,10 +13,10 @@ var initScene, render,
 
 initScene = function() {
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize( window.innerWidth, window.innerHeight );
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMapSoft = true;
+  renderer.shadowMap.enabled = false;
+  renderer.shadowMapSoft = false;
   document.getElementById( 'viewport' ).appendChild( renderer.domElement );
 
   render_stats = new Stats();
@@ -74,8 +74,8 @@ initScene = function() {
 
   wall_h = 12;
   wall_t = 0.5;
-  arena_h = 100;
-  arena_w = 170;
+  arena_h = 120;
+  arena_w = 220;
 
   // Loader
   loader = new THREE.TextureLoader();
@@ -119,6 +119,18 @@ initScene = function() {
   ground.receiveShadow = true;
   scene.add( ground );
 
+  function mkSphere(r, x, y, z, m) {
+    var box = new Physijs.SphereMesh(
+      new THREE.SphereGeometry(r, 16, 16),
+      box_material,
+      m
+    );
+
+    box.castShadow = box.receiveShadow = true;
+    box.position.set(x, y, z);
+    return box;
+  }
+
   function mkBox(a, b, c, x, y, z, m) {
     var box = new Physijs.BoxMesh(
       new THREE.BoxGeometry(a, b, c),
@@ -131,6 +143,7 @@ initScene = function() {
     return box;
   }
 
+  scene.add(mkSphere(3, 0, 15, 20, 0.4));
   scene.add(mkBox(arena_h, wall_h, wall_t, 0, wall_h / 2, arena_w / 2, 0));
   scene.add(mkBox(arena_h, wall_h, wall_t, 0, wall_h / 2, -arena_w / 2, 0));
 
@@ -176,7 +189,7 @@ initScene = function() {
         ws = new WebSocket("ws://" + document.location.host + "/read/steering" + room + "-" + name);
         telemetry = new WebSocket("ws://" + document.location.host + "/write/telemetry" + room + "-" + name);
 
-        car_materials[4].color.setStyle('#' + intToRGB(hashCode(name + "" + x + "" + z)));
+        car_materials[4].color.setStyle('#' + intToRGB(hashCode(name + ":" + x + "," + "z")));
         var mesh = new Physijs.BoxMesh(
           car,
           new THREE.MeshFaceMaterial(car_materials),
@@ -186,33 +199,33 @@ initScene = function() {
         mesh.position.x = x || 0;
         mesh.position.z = z || 0;
         mesh.position.y = 2;
-        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.castShadow = mesh.receiveShadow = false;
 
         vehicle = new Physijs.Vehicle(
-            mesh, new Physijs.VehicleTuning(
-              200.0, //suspension_stiffness
-              200.0, //suspension_compression
-              10.0, //suspension_damping
-              500, //max_suspension_travel
-              9.2, //friction_slip
-              2000 //max_suspension_force
-              )
-            );
+          mesh, new Physijs.VehicleTuning(
+            200.0, //suspension_stiffness
+            200.0, //suspension_compression
+            10.0, //suspension_damping
+            500, //max_suspension_travel
+            9.2, //friction_slip
+            2000 //max_suspension_force
+            )
+          );
         scene.add( vehicle );
 
         var wheel_material = new THREE.MeshFaceMaterial( wheel_materials );
 
         for ( var i = 0; i < wx.length; i++ ) {
           vehicle.addWheel(
-              wheel,
-              wheel_material,
-              new THREE.Vector3(wx[i], -1, wy[i]),
-              new THREE.Vector3(0, -1, 0),
-              new THREE.Vector3(-1, 0, 0),
-              0.5, //suspension_rest_length
-              0.7,
-              i < 2 ? false : true
-              );
+            wheel,
+            wheel_material,
+            new THREE.Vector3(wx[i], -1, wy[i]),
+            new THREE.Vector3(0, -1, 0),
+            new THREE.Vector3(-1, 0, 0),
+            0.5, //suspension_rest_length
+            0.7,
+            i < 2 ? false : true
+          );
         }
 
         input = { power: null, steering: 0 };
@@ -251,7 +264,7 @@ initScene = function() {
             vehicle.setBrake(0);
           }
           else if (input.power > 0) {
-            vehicle.applyEngineForce(5500 * input.power);
+            vehicle.applyEngineForce(4600 * input.power);
             vehicle.setBrake(0);
           } else if (input.power < 0) {
             if (spd < 5) {
@@ -272,9 +285,10 @@ initScene = function() {
   // END
 
 
-  mkVehicle("a", 0, 0);
-  mkVehicle("b", 5, 5);
-  mkVehicle("c", -5, 5);
+  mkVehicle("A", 10, 1);
+  mkVehicle("B", 5, 3);
+  mkVehicle("C", 0, 5);
+  mkVehicle("D", -5, 3);
 
   scene.addEventListener('update', function() {
     scene.simulate( undefined, 5 );
