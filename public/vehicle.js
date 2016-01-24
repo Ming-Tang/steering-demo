@@ -8,7 +8,8 @@ var initScene, render,
   ground_material, box_material,
   renderer, render_stats, physics_stats, scene, ground, light, camera,
   vehicle_body, vehicle, loader, ws, telemetry,
-  wx, wy, frontWheels, rearWheels;
+  wx, wy, frontWheels, rearWheels, wall_h, wall_t, arena_h, arena_w;
+
 
 initScene = function() {
 
@@ -51,13 +52,18 @@ initScene = function() {
   scene.addEventListener(
     'update',
     function() {
+      var vel = vehicle.mesh.getLinearVelocity();
+      var spd = vel.length();
+      if (isNaN(spd)) spd = 0;
+      if (telemetry && telemetry.readyState === 1)
+        telemetry.send('s' + spd);
 
       if ( input && vehicle ) {
         if (input.steering < -.6) input.steering = -.6;
         if (input.steering > .6) input.steering = .6;
 
         frontWheels.forEach(function(w) { vehicle.setSteering(input.steering, w); });
-        rearWheels.forEach(function(w) { vehicle.setSteering(-0.1*input.steering, w); });
+        //rearWheels.forEach(function(w) { vehicle.setSteering(-0.1*input.steering, w); });
 
         if (input.power === null) {
           vehicle.applyEngineForce(0);
@@ -67,16 +73,14 @@ initScene = function() {
           vehicle.applyEngineForce(1500 * input.power);
           vehicle.setBrake(0);
         } else if (input.power < 0) {
-          frontWheels.forEach(function(w) { vehicle.setBrake(-35 * input.power, w); });
-          rearWheels.forEach(function(w) { vehicle.setBrake(-25 * input.power, w); });
+          if (spd < 4) {
+            vehicle.applyEngineForce(500 * input.power);
+          } else {
+            frontWheels.forEach(function(w) { vehicle.setBrake(-35 * input.power, w); });
+            rearWheels.forEach(function(w) { vehicle.setBrake(-25 * input.power, w); });
+          }
         }
       }
-
-      var vel = vehicle.mesh.getLinearVelocity();
-      var spd = vel.length();
-      if (isNaN(spd)) spd = 0;
-      if (telemetry && telemetry.readyState === 1)
-        telemetry.send('s' + spd);
 
       scene.simulate( undefined, 5 );
       physics_stats.update();
@@ -84,7 +88,7 @@ initScene = function() {
   );
 
   camera = new THREE.PerspectiveCamera(
-    35,
+    50,
     window.innerWidth / window.innerHeight,
     1,
     1000
@@ -107,6 +111,10 @@ initScene = function() {
   light.shadowDarkness = .6;
   scene.add( light );
 
+  wall_h = 4;
+  wall_t = 0.1;
+  arena_h = 100;
+  arena_w = 170;
 
   var input;
 
@@ -133,7 +141,7 @@ initScene = function() {
   // Ground
   var NoiseGen = new SimplexNoise;
 
-  var ground_geometry = new THREE.PlaneGeometry( 1600, 1600, 400, 400 );
+  var ground_geometry = new THREE.PlaneGeometry(arena_h + 2, arena_w + 2, 2, 2);
   for ( var i = 0; i < ground_geometry.vertices.length; i++ ) {
     var vertex = ground_geometry.vertices[i];
     //vertex.y = NoiseGen.noise( vertex.x / 30, vertex.z / 30 ) * 1;
@@ -152,30 +160,33 @@ initScene = function() {
   ground.receiveShadow = true;
   scene.add( ground );
 
-  var number_of_items = 3; // CHANGE: the number of boxes in the simulation
-  for ( i = 0; i < number_of_items; i++ ) {
-    var size = Math.round(Math.random() * 5 + 5); // Some functions only like integers
-
+  function mkBox(a, b, c, x, y, z, m) {
     var box = new Physijs.BoxMesh(
-      new THREE.BoxGeometry( size, size, size ),
+      new THREE.BoxGeometry(a, b, c),
       box_material,
-      10 //mass
+      m
     );
 
-    /*
-    var box = new Physijs.ConeMesh(
-        // new THREE.CylinderGeometry( 0, 2, 4, 32 ),
-        new THREE.CylinderGeometry( 0, size, size*2, size*16 ),
-        box_material
-      );
-    //*/
     box.castShadow = box.receiveShadow = true;
-    box.position.set(
-      Math.random() * 25 - 50,
-      Math.random() * 5 + 5,
-      Math.random() * 25 - 50
-    );
-    scene.add(box);
+    box.position.set(x, y, z);
+    return box;
+  }
+
+  scene.add(mkBox(arena_h, wall_h, wall_t, 0, wall_h / 2, arena_w / 2, 0));
+  scene.add(mkBox(arena_h, wall_h, wall_t, 0, wall_h / 2, -arena_w / 2, 0));
+
+  scene.add(mkBox(wall_t, wall_h, arena_w, arena_h / 2, wall_h / 2, 0, 0));
+  scene.add(mkBox(wall_t, wall_h, arena_w, -arena_h / 2, wall_h / 2, 0, 0));
+
+  var number_of_items = 0; // CHANGE: the number of boxes in the simulation
+  for ( i = 0; i < number_of_items; i++ ) {
+    var size = Math.round(Math.random() * 5 + 5);
+    var
+      x = Math.random() * 25 - 50,
+      y = Math.random() * 5 + 5,
+      z = Math.random() * 25 - 50;
+
+    scene.add(mkBox(size, size, size, x, y, z));
   }
 
 
@@ -185,18 +196,19 @@ initScene = function() {
     json_loader.load( "models/mustang_wheel.js", function( wheel, wheel_materials ) {
       var mesh = new Physijs.BoxMesh(
         car,
-        new THREE.MeshFaceMaterial( car_materials )
+        new THREE.MeshFaceMaterial(car_materials),
+        90
       );
-      mesh.position.y = 4;
+      mesh.position.y = 3;
       mesh.castShadow = mesh.receiveShadow = true;
 
       vehicle = new Physijs.Vehicle(mesh, new Physijs.VehicleTuning(
-        33.88, //suspension_stiffness
-        3.23, //suspension_compression
-        0.78, //suspension_damping
+        20.0, //suspension_stiffness
+        200.0, //suspension_compression
+        10.0, //suspension_damping
         500, //max_suspension_travel
-        10.5, //friction_slip
-        3000 //max_suspension_force
+        9.2, //friction_slip
+        2000 //max_suspension_force
       ));
       scene.add( vehicle );
 
@@ -242,8 +254,15 @@ initScene = function() {
 render = function() {
   requestAnimationFrame( render );
   if ( vehicle ) {
-    camera.position.copy( vehicle.mesh.position ).add( new THREE.Vector3( 40, 5, 2 ) );
-    camera.lookAt( vehicle.mesh.position );
+    var r = 0.6, theta = 35 * (Math.PI / 180);
+    var cosine = Math.cos(theta), sine = Math.sin(theta);
+    // camera.position.copy( vehicle.mesh.position ).add
+    var pos =new THREE.Vector3(
+        arena_w * r * cosine, arena_w * sine, 0
+        );
+    camera.position.copy(pos);
+    // camera.lookAt( vehicle.mesh.position );
+    camera.lookAt( new THREE.Vector3(0, 0, 0) );
 
     light.target.position.copy( vehicle.mesh.position );
     //light.position.addVectors( light.target.position, new THREE.Vector3( 20, 20, -15 ) );
