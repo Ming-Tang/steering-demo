@@ -68,6 +68,11 @@ html, body, #main {
 </style>
 
 <script>
+function send(msg) {
+  if (ws.readyState === 1) {
+    return ws.send(msg);
+  }
+}
 
 function handler(evt) {
   var elem = document.getElementById("steer");
@@ -88,9 +93,7 @@ function handler(evt) {
     theta = Math.round(theta * 1e0) / 1e0;
     elem.innerHTML = theta + "&deg;";
 
-    if (ws.readyState === 1) {
-      ws.send(theta + "");
-    }
+    send(theta + "");
   } catch (e) {
     elem.innerText = e + "";
   }
@@ -136,7 +139,7 @@ window.onload = function() {
     var bound = 0.65;
     var th = (ry > bound ? 1 : ry / bound);
     var m = (rx > 0.5 ? 'a ' : 'b');
-    ws.send(m + "" + th);
+    send(m + "" + th);
     if (th == 0)
       accElem.innerText = ".";
     else
@@ -154,6 +157,17 @@ window.onload = function() {
   document.body.addEventListener('touchstart', touchHandler, false);
   document.body.addEventListener('touchmove', touchHandler, false);
   document.body.addEventListener('touchend', touchEndHandler, false);
+
+  var fullscreen;
+  document.body.addEventListener("click", function() {
+    fullscreen = document.body.requestFullScreen ||
+      document.body.webkitRequestFullScreen || document.body.mozRequestFullScreen;
+    if (fullscreen) {
+      fullscreen.apply(this);
+      if (window.screen.orientation.lock)
+        window.screen.orientation.lock("landscape");
+    }
+  }, false);
 
   screen.lockOrientationUniversal = screen.lockOrientation ||
     screen.mozLockOrientation || screen.msLockOrientation;
