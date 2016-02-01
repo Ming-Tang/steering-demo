@@ -3,6 +3,7 @@ const url = require('url');
 const express = require('express');
 const server = require('http').createServer();
 const WSS = require('ws').Server;
+const sendHeartbeats = require('ws-heartbeats');
 const wss = new WSS({ server: server });
 const app = express();
 
@@ -27,6 +28,7 @@ if (!process.env.DEBUG) {
 app.use(express.static('public'));
 
 wss.on('connection', (ws) => {
+  sendHeartbeats(ws);
   let loc = url.parse(ws.upgradeReq.url, true);
   let path = loc.pathname;
   if (path.charAt(0) == '/') path = path.slice(1);
