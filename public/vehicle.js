@@ -4,14 +4,13 @@
 Physijs.scripts.worker = '/physijs_worker.js';
 Physijs.scripts.ammo = '/js/ammo.js';
 
-var initScene, render,
-  ground_material, box_material,
-  renderer, render_stats, physics_stats, scene, ground, light, camera,
-  vehicles, loader,
-  wx, wy, frontWheels, rearWheels,
-  wall_h, wall_t, arena_h, arena_w;
-
-initScene = function() {
+function initScene() {
+  var
+    ground_material, box_material,
+    renderer, render_stats, physics_stats, scene, ground, light, camera,
+    vehicles, loader,
+    wx, wy, frontWheels, rearWheels,
+    wall_h, wall_t, arena_h, arena_w;
 
   renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize( window.innerWidth, window.innerHeight );
@@ -56,6 +55,34 @@ initScene = function() {
   );
   scene.add(camera);
 
+  function setCameraPosition() {
+    var r = 0.6, theta = 35 * (Math.PI / 180);
+    var cosine = Math.cos(theta), sine = Math.sin(theta);
+    var pos = new THREE.Vector3(
+        arena_w * r * cosine, arena_w * sine, 0
+        );
+    camera.position.copy(pos);
+    camera.lookAt( new THREE.Vector3(0, 0, 0) );
+  }
+
+  setCameraPosition();
+
+  // SETUP ORBIT CONTROLS OF THE CAMERA
+  var controls = new THREE.OrbitControls(camera);
+
+  // Handle resize
+  function resize() {
+		renderer.setSize(window.innerWidth,window.innerHeight);
+		camera.aspect = window.innerWidth/window.innerHeight;
+		camera.updateProjectionMatrix();
+	}
+
+	window.addEventListener('resize', resize);
+
+	resize();
+
+	window.onscroll = function() { window.scrollTo(0,0); }
+
   // Light
   light = new THREE.DirectionalLight( 0xFFFFFF );
   light.position.set(20, 20, -15);
@@ -70,6 +97,9 @@ initScene = function() {
   light.shadowBias = -.001;
   light.shadowMapWidth = light.shadowMapHeight = 512;
   light.shadowDarkness = .6;
+  scene.add(light);
+
+  light = new THREE.AmbientLight(0x403030);
   scene.add(light);
 
   wall_h = 12;
@@ -290,25 +320,19 @@ initScene = function() {
   mkVehicle("C", 0, 5);
   mkVehicle("D", -5, 3);
 
+  function render() {
+    requestAnimationFrame( render );
+    renderer.render( scene, camera );
+    render_stats.update();
+  }
+
   scene.addEventListener('update', function() {
     scene.simulate( undefined, 5 );
     physics_stats.update();
   });
   requestAnimationFrame( render );
   scene.simulate();
-};
-
-render = function() {
-  requestAnimationFrame( render );
-  var r = 0.6, theta = 35 * (Math.PI / 180);
-  var cosine = Math.cos(theta), sine = Math.sin(theta);
-  var pos =new THREE.Vector3(
-      arena_w * r * cosine, arena_w * sine, 0
-      );
-  camera.position.copy(pos);
-  camera.lookAt( new THREE.Vector3(0, 0, 0) );
-  renderer.render( scene, camera );
-  render_stats.update();
+  setCameraPosition();
 };
 
 window.onload = initScene;
