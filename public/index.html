@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Steering Demo</title>
+
+    <style type="text/css">
+      .qrbox {
+      }
+
+      a {
+        font-weight: bold;
+      }
+    </style>
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/qrcode.min.js"></script>
+
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+
+
+<script type="text/javascript">
+$(function() {
+  var qrcode = {};
+  var room = $('#room-id');
+
+  var base = window.location.href;
+
+  function getRoom() {
+    return encodeURIComponent(room.val());
+  }
+
+  function makeCode(name) {
+    if (!(name in qrcode)) {
+      qrcode[name] = new QRCode($("#qr-" + name)[0], {
+        width: 256,
+        height: 256
+      });
+    }
+
+    var url = base + 'steering.html?room=' + getRoom() + '-' + name;
+    $('#link-' + name).attr('href', url).text(url);
+    $('#name-' + name).text("Vehicle " + name);
+    qrcode[name].makeCode(url);
+  }
+
+  room.val('room' + Math.round(1000 * Math.random()));
+
+  function updateCodes() {
+    var gameURL = base + 'vehicle.html?room=' + getRoom();
+    $('#game-link').attr('href', gameURL).text(gameURL);
+    makeCode('A');
+    makeCode('B');
+    makeCode('C');
+    makeCode('D');
+  }
+
+  updateCodes();
+
+  room.on('blur', function() {
+    updateCodes();
+  });
+
+});
+</script>
+  </head>
+  <body>
+    <div class="container">
+      <div>
+        <h1>Steering Demo Multiplayer</h1>
+        <p>This is a demo for controlling a browser game using smartphones.</p>
+      </div>
+
+      <form action="#">
+        <div class="container-fluid">
+          <div class="row">
+            <div clas='col-md-8'>
+              <label>Room ID: </label>
+              <input type="text" name="room-id" id="room-id" />
+            </div>
+          </div>
+          <div class="row">
+            <h2>In Your Browser:</h2>
+            <p>Enter game using this link:</p>
+            <p><a id="game-link"></a></p>
+          </div>
+
+          <div class="row">
+            <h2>On Your Smartphone:</h2>
+            <p>Scan these QR codes to control a vehicle. Tilt to steer, touch
+            the left side to brake or reverse, and touch the right side
+            to accelerate.</p>
+          </div>
+          <div class="row">
+            <div class="col-lg-6 col-md-6 col-sm-12 qrbox">
+              <h3 id="name-A"></h3>
+              <p><a id="link-A"></a></p>
+              <div id="qr-A"></div>
+            </div>
+            <div class="col-lg-6 col-md-6 col-sm-12 qrbox">
+              <h3 id="name-B"></h3>
+              <p><a id="link-B"></a></p>
+              <div id="qr-B"></div>
+            </div>
+            <div class="col-lg-6 col-md-6 col-sm-12 qrbox">
+              <h3 id="name-C"></h3>
+              <p><a id="link-C"></a></p>
+              <div id="qr-C"></div>
+            </div>
+            <div class="col-lg-6 col-md-6 col-sm-12 qrbox">
+              <h3 id="name-D"></h3>
+              <p><a id="link-D"></a></p>
+              <div id="qr-D"></div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </body>
+</html>
