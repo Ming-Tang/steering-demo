@@ -17,7 +17,12 @@ if (!process.env.DEBUG) {
 
   app.use((req, res, next) => {
     if (!/(three|vehicle|physi)\.js$/.test(req.url)) {
+      res._uglifyMangle = true;
       res._no_minify = true;
+      res._uglifyOutput = {
+        comments: false,
+        indent_level: 0
+      };
     }
     next();
   });
