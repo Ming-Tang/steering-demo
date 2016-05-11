@@ -1,7 +1,7 @@
 {
-  "name": "racing-server",
+  "name": "steering-demo",
   "version": "1.0.0",
-  "description": "Backend for racing game",
+  "description": "",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
